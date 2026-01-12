@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whisper-asr
+  labels:
+    app: whisper-asr
+    app.kubernetes.io/name: whisper-asr
+    app.kubernetes.io/component: transcription
+    app.kubernetes.io/part-of: griot-and-grits
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whisper-asr
+  template:
+    metadata:
+      labels:
+        app: whisper-asr
+    spec:
+      containers:
+        - name: whisper-asr
+          # Using whisper-asr-webservice - a popular FastAPI wrapper for Whisper
+          # https://github.com/ahmetoner/whisper-asr-webservice
+          image: onerahmet/openai-whisper-asr-webservice:latest
+          ports:
+            - containerPort: 9000
+              protocol: TCP
+          env:
+            # Model size: tiny, base, small, medium, large, large-v2, large-v3
+            # Smaller = faster but less accurate
+            - name: ASR_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: whisper-config
+                  key: model
+            # Engine: openai_whisper or faster_whisper
+            - name: ASR_ENGINE
+              valueFrom:
+                configMapKeyRef:
+                  name: whisper-config
+                  key: engine
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "1"
+            limits:
+              memory: "8Gi"
+              cpu: "4"
+              # Uncomment for GPU support (requires GPU nodes)
+              # nvidia.com/gpu: "1"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: model-cache
+              mountPath: /root/.cache
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: whisper-model-cache

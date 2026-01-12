@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: whisper-model-cache
+  labels:
+    app: whisper-asr
+    app.kubernetes.io/name: whisper-asr
+    app.kubernetes.io/component: transcription
+    app.kubernetes.io/part-of: griot-and-grits
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # Model cache size depends on model choice:
+      # - tiny/base: 1Gi
+      # - small: 2Gi
+      # - medium: 5Gi
+      # - large-v3: 10Gi
+      storage: 5Gi
+  # Use default storage class - adjust if needed
+  # storageClassName: gp2

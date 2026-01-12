@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: whisper-config
+  labels:
+    app: whisper-asr
+    app.kubernetes.io/name: whisper-asr
+    app.kubernetes.io/component: transcription
+    app.kubernetes.io/part-of: griot-and-grits
+data:
+  # Model size options: tiny, base, small, medium, large, large-v2, large-v3
+  # - tiny:    ~1GB RAM, fastest, least accurate
+  # - base:    ~1GB RAM, fast, basic accuracy
+  # - small:   ~2GB RAM, good balance
+  # - medium:  ~5GB RAM, better accuracy
+  # - large-v3: ~10GB RAM, best accuracy (recommended for production)
+  model: "base"
+
+  # Engine options: openai_whisper or faster_whisper
+  # faster_whisper is faster and uses less memory
+  engine: "faster_whisper"
