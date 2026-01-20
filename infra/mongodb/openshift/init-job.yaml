@@ -9,26 +9,19 @@ spec:
       restartPolicy: OnFailure
       containers:
       - name: init
-        image: registry.redhat.io/rhel9/mongodb-70:latest
+        image: quay.io/bitnami/mongodb:7.0
         command: ["/bin/bash", "-c"]
-        env:
-        - name: MONGODB_USER
-          value: "admin"
-        - name: MONGODB_PASSWORD
-          value: "gngdevpass12"
-        - name: MONGODB_DATABASE
-          value: "gngdb"
         args:
         - |
           echo "Waiting for MongoDB to be ready..."
-          until mongosh --host mongodb --username admin --password gngdevpass12 --authenticationDatabase admin --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
+          until mongosh "mongodb://admin:gngdevpass12@mongodb:27017/gngdb?authSource=admin" --eval "db.adminCommand('ping')" > /dev/null 2>&1; do
             echo "MongoDB is unavailable - sleeping"
             sleep 2
           done
 
           echo "MongoDB is ready - creating collections and sample data..."
 
-          mongosh --host mongodb --username admin --password gngdevpass12 --authenticationDatabase admin gngdb <<EOF
+          mongosh "mongodb://admin:gngdevpass12@mongodb:27017/gngdb?authSource=admin" <<EOF
             // Create collections collection with sample data
             db.collections.insertOne({
               name: "Demo Collection",
