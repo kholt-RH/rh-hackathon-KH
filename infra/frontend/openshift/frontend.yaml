@@ -24,20 +24,22 @@ spec:
           git clone https://github.com/griot-and-grits/gng-web.git /tmp/app
           cd /tmp/app
           npm install
-          npm run dev -- --host 0.0.0.0
+          # Disable turbopack for faster compilation in containers
+          sed -i 's/"dev": "next dev --turbopack"/"dev": "next dev"/g' package.json
+          npm run dev -- --hostname 0.0.0.0
         ports:
-        - containerPort: 5173
+        - containerPort: 3000
           name: http
         env:
-        - name: VITE_API_URL
+        - name: NEXT_PUBLIC_API_URL
           value: "https://backend-NAMESPACE.CLUSTER_DOMAIN"
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "100m"
+            memory: "1Gi"
+            cpu: "200m"
           limits:
-            memory: "512Mi"
-            cpu: "500m"
+            memory: "2Gi"
+            cpu: "1000m"
 ---
 apiVersion: v1
 kind: Service
@@ -47,8 +49,8 @@ metadata:
     app: frontend
 spec:
   ports:
-  - port: 5173
-    targetPort: 5173
+  - port: 3000
+    targetPort: 3000
     protocol: TCP
     name: http
   selector:

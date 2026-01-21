@@ -313,6 +313,19 @@ if [ "$WITH_CODE" = true ]; then
     "$ROOT_DIR/scripts/deploy-code.sh" --namespace "$NAMESPACE"
 
     echo ""
+    print_step "Starting Code Auto-Sync"
+
+    # Start watcher in background
+    nohup "$ROOT_DIR/scripts/watch-code.sh" --namespace "$NAMESPACE" > "$ROOT_DIR/.watch-code.log" 2>&1 &
+    WATCHER_PID=$!
+    echo "$WATCHER_PID" > "$ROOT_DIR/.watch-code.pid"
+
+    print_success "Code watcher started (PID: $WATCHER_PID)"
+    print_info "Watching: $ROOT_DIR/griot-and-grits-backend and $ROOT_DIR/gng-web"
+    print_info "Logs: $ROOT_DIR/.watch-code.log"
+    print_info "Stop with: kill \$(cat $ROOT_DIR/.watch-code.pid)"
+
+    echo ""
 fi
 
 print_header "✨ Setup Complete!"

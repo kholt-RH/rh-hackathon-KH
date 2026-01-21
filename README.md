@@ -78,31 +78,36 @@ Connection details are in `.env.openshift` - just load and use!
 To deploy the frontend and backend code directly on OpenShift with automatic reload on changes:
 
 ```bash
-# Option A: Deploy during initial setup
+# ONE command does everything!
 ./scripts/setup-openshift.sh --with-code
-
-# Option B: Deploy code after setup
-./scripts/deploy-code.sh -n gng-<username>
 ```
 
-This deploys:
-- Backend (FastAPI) with hot-reload at `https://backend-gng-<username>.apps...`
-- Frontend (Next.js) with hot-reload at `https://frontend-gng-<username>.apps...`
+This will:
+- Deploy backend (FastAPI) with hot-reload at `https://backend-gng-<username>.apps...`
+- Deploy frontend (Next.js) with hot-reload at `https://frontend-gng-<username>.apps...`
+- Clone repos to `rh-hackathon/griot-and-grits-backend` and `rh-hackathon/gng-web`
+- **Start automatic code sync watcher in background**
 
-**Syncing code changes:**
+**Automatic code sync:**
+
+Once setup is complete, just edit code normally:
 
 ```bash
-# Get pod names
-oc get pods -n gng-<username>
-
-# Sync your local code changes to running pods
-oc rsync ./backend-code/ <backend-pod>:/code -n gng-<username>
-oc rsync ./frontend-code/ <frontend-pod>:/code -n gng-<username>
-
-# Changes are auto-detected and reloaded
+cd griot-and-grits-backend
+vim app/server.py
+# Save file... automatically synced to pod within 1 second!
 ```
 
-The code will automatically clone from GitHub on first deployment. For development, use `oc rsync` to sync your local changes to the running pods.
+The watcher automatically syncs changes when you save files. No manual commands needed!
+
+**Managing the watcher:**
+
+```bash
+./scripts/watch-ctl.sh status    # Check if running
+./scripts/watch-ctl.sh logs      # View sync logs
+./scripts/watch-ctl.sh stop      # Stop auto-sync
+./scripts/watch-ctl.sh start gng-<username>  # Restart
+```
 
 ---
 

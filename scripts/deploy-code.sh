@@ -72,7 +72,7 @@ FRONTEND_MANIFEST="$INFRA_DIR/frontend/openshift/frontend.yaml"
 TEMP_FRONTEND="/tmp/frontend-${NAMESPACE}.yaml"
 
 # Replace placeholder values in frontend manifest
-sed "s|value: \"https://backend-NAMESPACE.CLUSTER_DOMAIN\"|value: \"https://${BACKEND_URL}\"|g" "$FRONTEND_MANIFEST" > "$TEMP_FRONTEND"
+sed "s|https://backend-NAMESPACE.CLUSTER_DOMAIN|https://${BACKEND_URL}|g" "$FRONTEND_MANIFEST" > "$TEMP_FRONTEND"
 
 # Deploy Frontend
 echo ""

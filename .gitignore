@@ -210,3 +210,9 @@ __marimo__/
 .container-runtime
 .env.openshift
 .openshift-config
+.watch-code.log
+.watch-code.pid
+
+# Cloned application repositories
+griot-and-grits-backend/
+gng-web/
