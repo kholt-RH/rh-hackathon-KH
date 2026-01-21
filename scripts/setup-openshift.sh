@@ -338,25 +338,8 @@ echo -e "  ${GREEN}●${NC} MongoDB: ${CYAN}mongodb:27017${NC}"
 echo -e "  ${GREEN}●${NC} MinIO: ${CYAN}minio:9000${NC}"
 echo ""
 
-echo -e "${BOLD}Connection Details:${NC}\n"
-
-echo -e "${CYAN}MongoDB:${NC}"
-echo -e "  ${DIM}URI:${NC} mongodb://admin:gngdevpass12@mongodb:27017/gngdb"
-echo ""
-
-echo -e "${CYAN}MinIO:${NC}"
-echo -e "  ${DIM}Endpoint:${NC}    minio:9000"
-echo -e "  ${DIM}Access Key:${NC}  minioadmin"
-echo -e "  ${DIM}Secret Key:${NC}  minioadmin"
-echo -e "  ${DIM}Bucket:${NC}      artifacts"
-echo ""
-
 # Get MinIO console route
 MINIO_CONSOLE=$(oc get route minio-console -n "$NAMESPACE" -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
-if [ -n "$MINIO_CONSOLE" ]; then
-    echo -e "  ${DIM}Console:${NC}     ${CYAN}https://$MINIO_CONSOLE${NC}"
-    echo ""
-fi
 
 echo -e "${BOLD}📝 Next Steps:${NC}\n"
 
@@ -365,54 +348,39 @@ if [ "$WITH_CODE" = true ]; then
     FRONTEND_ROUTE=$(oc get route frontend -n "$NAMESPACE" -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
     BACKEND_ROUTE=$(oc get route backend -n "$NAMESPACE" -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
 
-    echo -e "${YELLOW}1.${NC} ${BOLD}Access your application:${NC}"
+    echo -e "${YELLOW}1.${NC} ${BOLD}Start coding!${NC}"
+    echo -e "   ${DIM}cd griot-and-grits-backend  # Edit backend${NC}"
+    echo -e "   ${DIM}cd gng-web                  # Edit frontend${NC}"
+    echo -e "   ${DIM}Changes auto-sync to OpenShift${NC}\n"
+
+    echo -e "${YELLOW}2.${NC} ${BOLD}View your app:${NC}"
     if [ -n "$FRONTEND_ROUTE" ]; then
-        echo -e "   ${CYAN}Frontend:${NC} https://$FRONTEND_ROUTE"
+        echo -e "   ${CYAN}https://$FRONTEND_ROUTE${NC}"
     fi
     if [ -n "$BACKEND_ROUTE" ]; then
-        echo -e "   ${CYAN}Backend:${NC}  https://$BACKEND_ROUTE"
+        echo -e "   ${DIM}API: https://$BACKEND_ROUTE/docs${NC}"
     fi
-    echo -e "   ${DIM}Hot-reload is enabled for code changes${NC}\n"
+    echo ""
 
-    echo -e "${YELLOW}2.${NC} ${BOLD}Update code (for development):${NC}"
-    echo -e "   ${DIM}# Sync local changes to running pods${NC}"
-    echo -e "   ${DIM}oc rsync ./backend-code/ \$(oc get pod -l app=backend -o name | head -1):/code -n $NAMESPACE${NC}"
-    echo -e "   ${DIM}oc rsync ./frontend-code/ \$(oc get pod -l app=frontend -o name | head -1):/code -n $NAMESPACE${NC}\n"
-
-    echo -e "${YELLOW}3.${NC} ${BOLD}Access MinIO console:${NC}"
+    echo -e "${YELLOW}3.${NC} ${BOLD}Manage watcher:${NC}"
+    echo -e "   ${DIM}./scripts/watch-ctl.sh status  # Check sync status${NC}"
+    echo -e "   ${DIM}./scripts/watch-ctl.sh logs    # View sync logs${NC}\n"
 else
-    echo -e "${YELLOW}1.${NC} ${BOLD}Use the backend services:${NC}"
-    echo -e "   ${DIM}source .env.openshift${NC}"
-    echo -e "   ${DIM}# All connection details are in this file${NC}\n"
+    echo -e "${YELLOW}1.${NC} ${BOLD}Deploy code with hot-reload:${NC}"
+    echo -e "   ${DIM}$0 --username $USERNAME --with-code${NC}\n"
 
-    echo -e "${YELLOW}2.${NC} ${BOLD}Deploy your code:${NC}"
-    echo -e "   ${DIM}$0 --username $USERNAME --with-code${NC}"
-    echo -e "   ${DIM}# Deploys frontend and backend with hot-reload${NC}\n"
-
-    echo -e "${YELLOW}3.${NC} ${BOLD}Access MinIO console:${NC}"
+    echo -e "${YELLOW}2.${NC} ${BOLD}Or use services only:${NC}"
+    echo -e "   ${DIM}source .env.openshift  # Load config${NC}\n"
 fi
 
 if [ -n "$MINIO_CONSOLE" ]; then
-    echo -e "   ${DIM}https://$MINIO_CONSOLE${NC}"
-    echo -e "   ${DIM}Login: minioadmin / minioadmin${NC}\n"
-else
-    echo -e "   ${DIM}oc get route minio-console -n $NAMESPACE${NC}\n"
+    echo -e "${DIM}MinIO Console: https://$MINIO_CONSOLE (minioadmin/minioadmin)${NC}\n"
 fi
 
-if [ "$WITH_CODE" != true ]; then
-    echo -e "${YELLOW}4.${NC} ${BOLD}Port-forward for local access:${NC}"
-    echo -e "   ${DIM}oc port-forward service/mongodb 27017:27017 -n $NAMESPACE${NC}"
-    echo -e "   ${DIM}oc port-forward service/minio 9000:9000 -n $NAMESPACE${NC}\n"
-fi
-
-echo -e "${BOLD}🛠  Useful Commands:${NC}\n"
-echo -e "  ${CYAN}oc get all -n $NAMESPACE${NC}"
-echo -e "    ${DIM}View all resources${NC}\n"
-echo -e "  ${CYAN}oc logs -f deployment/postgres -n $NAMESPACE${NC}"
-echo -e "    ${DIM}View PostgreSQL logs${NC}\n"
-echo -e "  ${CYAN}./scripts/cleanup-jobs.sh${NC}"
-echo -e "    ${DIM}Clean up old jobs${NC}\n"
-echo -e "  ${CYAN}$0 --delete${NC}"
-echo -e "    ${DIM}Delete your namespace${NC}\n"
+echo -e "${BOLD}🛠  Useful Commands:${NC}"
+echo -e "  ${DIM}oc get all -n $NAMESPACE         # View all resources${NC}"
+echo -e "  ${DIM}oc logs -f deployment/backend    # View backend logs${NC}"
+echo -e "  ${DIM}$0 --delete                      # Delete namespace${NC}"
+echo ""
 
 echo -e "${GREEN}${BOLD}Happy Hacking! 🚀${NC}\n"
