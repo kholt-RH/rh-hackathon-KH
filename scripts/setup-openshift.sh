@@ -189,6 +189,9 @@ else
         print_error "Failed to create namespace. You may not have permission."
         exit 1
     fi
+
+    # Label the namespace for easy cleanup
+    oc label namespace "$NAMESPACE" app=griot-grits-hackathon &>/dev/null || true
 fi
 
 # Save namespace to config

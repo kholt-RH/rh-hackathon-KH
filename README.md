@@ -8,12 +8,12 @@ Choose your development environment:
 
 ### Option 1: Local Development (with containers)
 
-**Prerequisites:** Git, Node.js 18+, Python 3.10+, `uv` or `pip`
+**Prerequisites:** Git, Node.js 18+, Python 3.10+, `uv` or `pip`, `make`
 
 ```bash
 cd ~/rh-hackathon
-./scripts/setup.sh          # One-time setup (clones repos, installs deps)
-./scripts/dev-all.sh        # Start everything
+make setup-local            # One-time setup (clones repos, installs deps)
+make dev                    # Start everything
 ```
 
 **URLs:**
@@ -23,9 +23,9 @@ cd ~/rh-hackathon
 
 **Utility commands:**
 ```bash
-./scripts/status.sh         # Check what's running
-./scripts/stop-services.sh  # Stop services
-./scripts/clean.sh          # Remove containers
+make status                 # Check what's running
+make stop-services          # Stop services
+make clean-local            # Remove containers
 ```
 
 ---
@@ -34,13 +34,15 @@ cd ~/rh-hackathon
 
 For RHOAI workbenches where containers aren't available.
 
-**Prerequisites:** `oc` CLI, OpenShift cluster access
+**Prerequisites:** OpenShift cluster access, `make`
+
+The `oc` CLI will be automatically installed if not found.
 
 **Setup:**
 ```bash
 oc login <cluster-url>      # Get login command from web console
 cd ~/rh-hackathon
-./scripts/setup-openshift.sh
+make setup-openshift  # Will prompt for username interactively
 ```
 
 This creates:
@@ -51,18 +53,26 @@ This creates:
 
 **Using your services:**
 ```bash
-# View resources
-oc get all -n gng-<username>
+# View resources (auto-detects namespace)
+make oc-status
 
-# View logs
-oc logs -f deployment/mongodb -n gng-<username>
-oc logs -f deployment/minio -n gng-<username>
+# View logs (auto-detects namespace)
+make oc-logs-mongodb
+make oc-logs-minio
 
 # Access MinIO console
-oc get route minio-console -n gng-<username>
+oc get route minio-console -n gng-jdoe
 
-# Delete everything
-./scripts/setup-openshift.sh --delete
+# Clean up OpenShift (deletes namespace + local config files)
+make clean-openshift
+
+# Or just delete namespace (keeps local config files)
+make delete-namespace
+```
+
+**View all connection details:**
+```bash
+make info  # Shows URLs, credentials, and all important information
 ```
 
 **Port forwarding (for local access):**
@@ -79,7 +89,7 @@ To deploy the frontend and backend code directly on OpenShift with automatic rel
 
 ```bash
 # ONE command does everything!
-./scripts/setup-openshift.sh --with-code
+make setup-openshift-with-code  # Prompts for username
 ```
 
 This will:
@@ -103,18 +113,36 @@ The watcher automatically syncs changes when you save files. No manual commands 
 **Managing the watcher:**
 
 ```bash
-./scripts/watch-ctl.sh status    # Check if running
-./scripts/watch-ctl.sh logs      # View sync logs
-./scripts/watch-ctl.sh stop      # Stop auto-sync
-./scripts/watch-ctl.sh start gng-<username>  # Restart
+make watch-status           # Check if running
+make watch-logs             # View sync logs
+make watch-stop             # Stop auto-sync
+make watch-start            # Restart (auto-detects namespace)
+```
+
+**Continuous backend sync (for active development):**
+
+```bash
+# Syncs on file changes + every 2 seconds (instant updates)
+make watch-backend                  # Start in background
+make watch-backend-status           # Check if running
+make watch-backend-logs             # View sync activity
+make watch-backend-stop             # Stop watcher
+```
+
+This mode is perfect for backend development - it syncs both on file changes AND periodically, ensuring uvicorn --reload picks up changes instantly. Runs in background so it doesn't block your terminal.
+
+**Stop all watchers:**
+
+```bash
+make watch-stop-all         # Stops both main watcher and backend watcher
 ```
 
 **Manual sync (without watcher):**
 
 ```bash
-./scripts/sync-code.sh           # Sync both backend and frontend
-./scripts/sync-code.sh -b        # Sync backend only
-./scripts/sync-code.sh -f        # Sync frontend only
+make sync                   # Sync both (auto-detects namespace)
+make sync-backend           # Sync backend only
+make sync-frontend          # Sync frontend only
 ```
 
 ---
@@ -158,37 +186,43 @@ rh-hackathon/
 
 ```bash
 # Start/stop services
-./scripts/start-services.sh
-./scripts/stop-services.sh
+make start-services
+make stop-services
 
 # Run backend/frontend separately
-./scripts/dev-backend.sh    # Terminal 1
-./scripts/dev-frontend.sh   # Terminal 2
+make dev-backend        # Terminal 1
+make dev-frontend       # Terminal 2
 
 # Check status
-./scripts/status.sh
+make status
 
 # Clean up
-./scripts/clean.sh          # Remove containers, keep data
-./scripts/clean.sh --all    # Remove everything
+make clean-local        # Remove containers, keep data
+make clean-local-all    # Remove everything
 ```
 
 ### OpenShift Development
 
 ```bash
-# View all resources
-oc get all -n gng-<username>
+# View all URLs, credentials, and connection details
+make info
+
+# View all resources (auto-detects namespace)
+make oc-status
 
 # Deploy application code with hot-reload
-./scripts/deploy-code.sh -n gng-<username>
+make deploy-code
 
-# Sync local code changes to running pods
-oc rsync ./backend-code/ $(oc get pod -l app=backend -o name | head -1):/code -n gng-<username>
-oc rsync ./frontend-code/ $(oc get pod -l app=frontend -o name | head -1):/code -n gng-<username>
+# Continuous backend sync (for active development)
+make watch-backend              # Instant updates, background mode
+make watch-backend-logs         # View sync activity
+
+# Manual sync
+make sync
 
 # View application logs
-oc logs -f deployment/backend -n gng-<username>
-oc logs -f deployment/frontend -n gng-<username>
+make oc-logs-backend
+make oc-logs-frontend
 
 # Shell into pod
 oc rsh deployment/mongodb -n gng-<username>
@@ -197,11 +231,10 @@ oc rsh deployment/mongodb -n gng-<username>
 oc cp file.txt deployment/mongodb:/tmp/ -n gng-<username>
 
 # Clean up old jobs
-./scripts/cleanup-jobs.sh
+make cleanup-jobs
 
 # Redeploy services
-./scripts/deploy-services.sh --delete -n gng-<username>
-./scripts/deploy-services.sh -n gng-<username>
+make deploy-services
 ```
 
 ## Troubleshooting
@@ -216,10 +249,10 @@ kill -9 <PID>  # Kill it
 
 **Services won't start:**
 ```bash
-./scripts/status.sh        # Check status
+make status                # Check status
 podman ps -a | grep gng    # Check containers
-./scripts/clean.sh         # Clean and restart
-./scripts/start-services.sh
+make clean-local           # Clean and restart
+make start-services
 ```
 
 **Backend can't connect:**
@@ -239,20 +272,20 @@ oc whoami  # Check login status
 
 **Pods not running:**
 ```bash
-oc get pods -n gng-<username>
-oc describe pod <pod-name> -n gng-<username>
-oc logs <pod-name> -n gng-<username>
+make oc-status              # View all resources
+oc describe pod <pod-name>  # Detailed pod info
+make oc-logs-backend        # View backend logs
 ```
 
 **Jobs accumulating:**
 ```bash
-./scripts/cleanup-jobs.sh  # Clean up completed jobs
+make cleanup-jobs  # Clean up completed jobs
 ```
 
 **Start over:**
 ```bash
-./scripts/setup-openshift.sh --delete
-./scripts/setup-openshift.sh
+make clean-openshift   # Deletes namespace + local config files
+make setup-openshift   # Setup fresh
 ```
 
 ## Environment Variables
@@ -277,27 +310,64 @@ See `env-templates/` for full examples.
 For speech-to-text transcription:
 
 ```bash
-./infra/whisper/deploy.sh --namespace gng-<username>
+make deploy-whisper MODEL=base  # Auto-detects namespace
 ```
+
+Available models: `tiny`, `base`, `small`, `medium`, `large-v3`
 
 See [INFRA.md](INFRA.md) for details.
 
 ### Manual Service Deployment
 
 ```bash
-# Deploy MongoDB + MinIO only
-./scripts/deploy-services.sh --namespace gng-<username>
+# Deploy MongoDB + MinIO only (auto-detects namespace)
+make deploy-services
+```
 
-# Skip initialization
-./scripts/deploy-services.sh --skip-init -n gng-<username>
+### View All Available Commands
+
+```bash
+make help       # Show all available targets
+make examples   # Show common usage examples
 ```
 
 ## Getting Help
 
-- Check logs: `oc logs -f deployment/<name>`
+- View all info: `make info` - Shows URLs, credentials, and connection details
+- Check logs: `oc logs -f deployment/<name>` or `make oc-logs-backend`
 - View events: `oc get events -n gng-<username>`
 - Describe resource: `oc describe deployment/<name>`
+- Show commands: `make help` or `make examples`
 - Ask organizers on Slack/Discord
+
+---
+
+## Notes
+
+### Namespace Auto-Detection
+
+Most commands automatically detect your namespace from `.openshift-config` (created during setup). You don't need to specify it every time.
+
+**If auto-detection doesn't work**, you can override for any command:
+```bash
+# Examples of overriding namespace
+make sync NAMESPACE=gng-custom
+make oc-logs-backend NAMESPACE=gng-other
+make deploy-code NAMESPACE=gng-test
+```
+
+**To check your current namespace:**
+```bash
+cat .openshift-config  # Shows NAMESPACE and USERNAME
+make info              # Shows all configuration
+```
+
+### Performance Tips
+
+**Backend sync too slow?** Use the continuous watcher for instant updates:
+```bash
+make watch-backend  # Syncs on changes + every 2 seconds
+```
 
 ## License
 

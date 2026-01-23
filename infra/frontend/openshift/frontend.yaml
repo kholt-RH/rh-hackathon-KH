@@ -23,9 +23,12 @@ spec:
         - |
           git clone https://github.com/griot-and-grits/gng-web.git /tmp/app
           cd /tmp/app
+
           npm install
+
           # Disable turbopack for faster compilation in containers
           sed -i 's/"dev": "next dev --turbopack"/"dev": "next dev"/g' package.json
+
           npm run dev -- --hostname 0.0.0.0
         ports:
         - containerPort: 3000
