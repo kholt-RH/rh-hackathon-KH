@@ -1,171 +1,373 @@
 # Griot & Grits - Hackathon Toolkit
 
-Development and infrastructure scripts for the Griot & Grits project - AI-powered preservation of minority history.
+Development toolkit for the Griot & Grits project - AI-powered preservation of minority history.
 
-## Quick Start (Students/Labbers)
+## Quick Start
 
-### Prerequisites
+Choose your development environment:
 
-- Git
-- Node.js 18+
-- Python 3.10+
-- `uv` (recommended) or `pip`
+### Option 1: Local Development (with containers)
 
-> **Note:** Podman or Docker will be auto-installed if not present. Works in rootless environments (OpenShift AI workbenches).
-
-### One-Time Setup
+**Prerequisites:** Git, Node.js 18+, Python 3.10+, `uv` or `pip`, `make`
 
 ```bash
 cd ~/rh-hackathon
-./scripts/setup.sh
+make setup-local            # One-time setup (clones repos, installs deps)
+make dev                    # Start everything
 ```
 
-The setup script will automatically:
-- Clone `github.com/griot-and-grits/gng-web` to `~/gng-web`
-- Clone `github.com/griot-and-grits/griot-and-grits-backend` to `~/griot-and-grits-backend`
-- Create `.env` files with local development defaults
-- Install all dependencies
+**URLs:**
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000/docs
+- MinIO Console: http://localhost:9001
 
-### Daily Development
-
+**Utility commands:**
 ```bash
-# Option 1: Start everything at once
-./scripts/dev-all.sh
-
-# Option 2: Start components separately (recommended)
-./scripts/start-services.sh    # Start MongoDB + MinIO
-./scripts/dev-backend.sh       # Terminal 1: Backend with hot reload
-./scripts/dev-frontend.sh      # Terminal 2: Frontend with hot reload
+make status                 # Check what's running
+make stop-services          # Stop services
+make clean-local            # Remove containers
 ```
 
-### URLs
+---
 
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost:3000 |
-| Admin Portal | http://localhost:3000/admin |
-| Backend API | http://localhost:8000 |
-| API Docs | http://localhost:8000/docs |
-| MinIO Console | http://localhost:9001 |
+### Option 2: OpenShift/RHOAI (without containers)
 
-### Utility Commands
+For RHOAI workbenches where containers aren't available.
+
+**Prerequisites:** OpenShift cluster access, `make`
+
+The `oc` CLI will be automatically installed if not found.
+
+**Setup:**
+```bash
+oc login <cluster-url>      # Get login command from web console
+cd ~/rh-hackathon
+make setup-openshift  # Will prompt for username interactively
+```
+
+This creates:
+- Personal namespace: `gng-<username>`
+- MongoDB database
+- MinIO object storage
+- `.env.openshift` file with all connection details
+
+**Using your services:**
+```bash
+# View resources (auto-detects namespace)
+make oc-status
+
+# View logs (auto-detects namespace)
+make oc-logs-mongodb
+make oc-logs-minio
+
+# Access MinIO console
+oc get route minio-console -n gng-jdoe
+
+# Clean up OpenShift (deletes namespace + local config files)
+make clean-openshift
+
+# Or just delete namespace (keeps local config files)
+make delete-namespace
+```
+
+**View all connection details:**
+```bash
+make info  # Shows URLs, credentials, and all important information
+```
+
+**Port forwarding (for local access):**
+```bash
+oc port-forward service/mongodb 27017:27017 -n gng-<username>
+oc port-forward service/minio 9000:9000 -n gng-<username>
+```
+
+Connection details are in `.env.openshift` - just load and use!
+
+**Deploying application code with hot-reload:**
+
+To deploy the frontend and backend code directly on OpenShift with automatic reload on changes:
 
 ```bash
-./scripts/status.sh            # Check what's running
-./scripts/stop-services.sh     # Stop MongoDB + MinIO
-./scripts/clean.sh             # Remove containers (keeps data)
-./scripts/clean.sh --all       # Remove containers AND data
+# ONE command does everything!
+make setup-openshift-with-code  # Prompts for username
+```
+
+This will:
+- Deploy backend (FastAPI) with hot-reload at `https://backend-gng-<username>.apps...`
+- Deploy frontend (Next.js) with hot-reload at `https://frontend-gng-<username>.apps...`
+- Clone repos to `rh-hackathon/gng-backend` and `rh-hackathon/gng-web`
+- **Start automatic code sync watcher in background**
+
+**Automatic code sync:**
+
+Once setup is complete, just edit code normally:
+
+```bash
+cd gng-backend
+vim app/server.py
+# Save file... automatically synced to pod within 1 second!
+```
+
+The watcher automatically syncs changes when you save files. No manual commands needed!
+
+**Managing the watcher:**
+
+```bash
+make watch-status           # Check if running
+make watch-logs             # View sync logs
+make watch-stop             # Stop auto-sync
+make watch-start            # Restart (auto-detects namespace)
+```
+
+**Continuous backend sync (for active development):**
+
+```bash
+# Syncs on file changes + every 2 seconds (instant updates)
+make watch-backend                  # Start in background
+make watch-backend-status           # Check if running
+make watch-backend-logs             # View sync activity
+make watch-backend-stop             # Stop watcher
+```
+
+This mode is perfect for backend development - it syncs both on file changes AND periodically, ensuring uvicorn --reload picks up changes instantly. Runs in background so it doesn't block your terminal.
+
+**Stop all watchers:**
+
+```bash
+make watch-stop-all         # Stops both main watcher and backend watcher
+```
+
+**Manual sync (without watcher):**
+
+```bash
+make sync                   # Sync both (auto-detects namespace)
+make sync-backend           # Sync backend only
+make sync-frontend          # Sync frontend only
+```
+
+---
+
+## Architecture
+
+```
+Frontend (Next.js)  →  Backend (FastAPI)
+    :3000                   :8000
+                               ↓
+                    ┌──────────┼──────────┐
+                    ↓          ↓          ↓
+                MongoDB    MinIO    Whisper
+                 :27017    :9000   (optional)
+                Database  Storage  Transcription
 ```
 
 ## Project Structure
 
 ```
 rh-hackathon/
-├── scripts/                   # Student/labber scripts
-│   ├── setup.sh              # One-time setup
-│   ├── start-services.sh     # Start MongoDB + MinIO
-│   ├── stop-services.sh      # Stop services
-│   ├── dev-backend.sh        # Run backend (hot reload)
-│   ├── dev-frontend.sh       # Run frontend (hot reload)
-│   ├── dev-all.sh            # Run everything
-│   ├── status.sh             # Check service status
-│   └── clean.sh              # Cleanup containers
-├── infra/                     # Infrastructure scripts (admins)
-│   └── whisper/              # Whisper ASR deployment
-│       ├── deploy.sh         # Deploy to OpenShift
-│       └── openshift/        # K8s/OpenShift manifests
+├── scripts/
+│   ├── setup.sh              # Local: One-time setup
+│   ├── setup-openshift.sh    # OpenShift: One-time setup
+│   ├── dev-all.sh            # Local: Start everything
+│   ├── deploy-services.sh    # OpenShift: Deploy MongoDB + MinIO
+│   ├── deploy-code.sh        # OpenShift: Deploy frontend + backend
+│   └── ...
+├── infra/
+│   ├── mongodb/              # MongoDB deployment
+│   ├── minio/                # MinIO deployment
+│   ├── backend/              # Backend app deployment
+│   ├── frontend/             # Frontend app deployment
+│   └── whisper/              # Whisper ASR (optional)
 └── env-templates/            # Environment file templates
-    ├── backend.env           # Backend .env template
-    └── frontend.env          # Frontend .env.local template
 ```
 
-## Architecture
+## Common Tasks
 
+### Local Development
+
+```bash
+# Start/stop services
+make start-services
+make stop-services
+
+# Run backend/frontend separately
+make dev-backend        # Terminal 1
+make dev-frontend       # Terminal 2
+
+# Check status
+make status
+
+# Clean up
+make clean-local        # Remove containers, keep data
+make clean-local-all    # Remove everything
 ```
-┌─────────────────┐     ┌─────────────────┐
-│    Frontend     │────▶│     Backend     │
-│   (Next.js)     │     │   (FastAPI)     │
-│   Port 3000     │     │   Port 8000     │
-└─────────────────┘     └────────┬────────┘
-                                 │
-                    ┌────────────┼────────────┐
-                    ▼            ▼            ▼
-              ┌──────────┐ ┌──────────┐ ┌──────────┐
-              │ MongoDB  │ │  MinIO   │ │ Whisper  │
-              │  :27017  │ │  :9000   │ │ (OpenShift)
-              └──────────┘ └──────────┘ └──────────┘
+
+### OpenShift Development
+
+```bash
+# View all URLs, credentials, and connection details
+make info
+
+# View all resources (auto-detects namespace)
+make oc-status
+
+# Deploy application code with hot-reload
+make deploy-code
+
+# Continuous backend sync (for active development)
+make watch-backend              # Instant updates, background mode
+make watch-backend-logs         # View sync activity
+
+# Manual sync
+make sync
+
+# View application logs
+make oc-logs-backend
+make oc-logs-frontend
+
+# Shell into pod
+oc rsh deployment/mongodb -n gng-<username>
+
+# Copy files
+oc cp file.txt deployment/mongodb:/tmp/ -n gng-<username>
+
+# Clean up old jobs
+make cleanup-jobs
+
+# Redeploy services
+make deploy-services
 ```
-
-
-## Environment Variables
-
-### Backend (`griot-and-grits-backend/.env`)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DB_URI` | `mongodb://admin:gngdevpass12@localhost:27017/` | MongoDB connection |
-| `STORAGE_ENDPOINT` | `localhost:9000` | MinIO endpoint |
-| `PROCESSING_ENABLE_TRANSCRIPTION` | `false` | Enable Whisper ASR |
-| `PROCESSING_TRANSCRIPTION_API_URL` | - | Whisper API URL |
-
-### Frontend (`gng-web/.env.local`)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NEXT_PUBLIC_ADMIN_API_BASE_URL` | `http://localhost:8000` | Backend URL |
-| `ADMIN_AUTH_DISABLED` | `true` | Disable auth for dev |
-
-Full templates in `env-templates/`.
 
 ## Troubleshooting
 
-### No container runtime found
-```bash
-# Re-run setup to auto-install Podman
-./scripts/setup.sh
+### Local Development
 
-# Or check what's available
-which podman docker
+**Port already in use:**
+```bash
+lsof -i :3000  # Find process
+kill -9 <PID>  # Kill it
 ```
 
-### Port already in use
+**Services won't start:**
 ```bash
-# Find what's using the port
-lsof -i :3000
-lsof -i :8000
-
-# Kill the process
-kill -9 <PID>
+make status                # Check status
+podman ps -a | grep gng    # Check containers
+make clean-local           # Clean and restart
+make start-services
 ```
 
-### MongoDB/MinIO won't start
+**Backend can't connect:**
 ```bash
-# Check status
-./scripts/status.sh
-
-# Check for existing containers (use podman or docker)
-podman ps -a | grep gng
-
-# Remove and restart
-./scripts/clean.sh
-./scripts/start-services.sh
+podman logs gng-mongodb    # Check MongoDB
+grep DB_URI ~/.env         # Verify connection string
 ```
 
-### Backend can't connect to MongoDB
-```bash
-# Check MongoDB is running
-podman logs gng-mongodb  # or: docker logs gng-mongodb
+### OpenShift
 
-# Verify connection string in .env
-grep DB_URI ~/griot-and-grits-backend/.env
+**Not logged in:**
+```bash
+oc whoami  # Check login status
+# Get new login command from web console:
+# Click username → Copy login command
 ```
 
-## Contributing
+**Pods not running:**
+```bash
+make oc-status              # View all resources
+oc describe pod <pod-name>  # Detailed pod info
+make oc-logs-backend        # View backend logs
+```
 
-1. Create a feature branch
-2. Make your changes
-3. Test locally with `./scripts/dev-all.sh`
-4. Submit a PR
+**Jobs accumulating:**
+```bash
+make cleanup-jobs  # Clean up completed jobs
+```
+
+**Start over:**
+```bash
+make clean-openshift   # Deletes namespace + local config files
+make setup-openshift   # Setup fresh
+```
+
+## Environment Variables
+
+Configuration files are created automatically:
+
+**Local:** `~/gng-backend/.env`
+**OpenShift:** `.env.openshift`
+
+Key variables:
+- `DB_URI` - MongoDB connection string
+- `STORAGE_ENDPOINT` - MinIO endpoint
+- `STORAGE_ACCESS_KEY/SECRET_KEY` - MinIO credentials
+- `PROCESSING_ENABLE_TRANSCRIPTION` - Enable Whisper (optional)
+
+See `env-templates/` for full examples.
+
+## Advanced
+
+### Deploy Whisper ASR (Optional)
+
+For speech-to-text transcription:
+
+```bash
+make deploy-whisper MODEL=base  # Auto-detects namespace
+```
+
+Available models: `tiny`, `base`, `small`, `medium`, `large-v3`
+
+See [INFRA.md](INFRA.md) for details.
+
+### Manual Service Deployment
+
+```bash
+# Deploy MongoDB + MinIO only (auto-detects namespace)
+make deploy-services
+```
+
+### View All Available Commands
+
+```bash
+make help       # Show all available targets
+make examples   # Show common usage examples
+```
+
+## Getting Help
+
+- View all info: `make info` - Shows URLs, credentials, and connection details
+- Check logs: `oc logs -f deployment/<name>` or `make oc-logs-backend`
+- View events: `oc get events -n gng-<username>`
+- Describe resource: `oc describe deployment/<name>`
+- Show commands: `make help` or `make examples`
+- Ask organizers on Slack/Discord
+
+---
+
+## Notes
+
+### Namespace Auto-Detection
+
+Most commands automatically detect your namespace from `.openshift-config` (created during setup). You don't need to specify it every time.
+
+**If auto-detection doesn't work**, you can override for any command:
+```bash
+# Examples of overriding namespace
+make sync NAMESPACE=gng-custom
+make oc-logs-backend NAMESPACE=gng-other
+make deploy-code NAMESPACE=gng-test
+```
+
+**To check your current namespace:**
+```bash
+cat .openshift-config  # Shows NAMESPACE and USERNAME
+make info              # Shows all configuration
+```
+
+### Performance Tips
+
+**Backend sync too slow?** Use the continuous watcher for instant updates:
+```bash
+make watch-backend  # Syncs on changes + every 2 seconds
+```
 
 ## License
 

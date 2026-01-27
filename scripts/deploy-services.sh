@@ -130,33 +130,35 @@ fi
 # Check/create namespace
 if ! oc get namespace "$NAMESPACE" &> /dev/null; then
     print_step "Creating Namespace"
-    oc new-project "$NAMESPACE" || oc create namespace "$NAMESPACE"
+    oc new-project "$NAMESPACE" &>/dev/null || oc create namespace "$NAMESPACE" &>/dev/null
     print_success "Namespace created"
 fi
 
 # Deploy MongoDB
 print_step "Deploying MongoDB"
-oc apply -k "$ROOT_DIR/infra/mongodb/openshift" -n "$NAMESPACE"
+oc apply -k "$ROOT_DIR/infra/mongodb/openshift" -n "$NAMESPACE" | grep -E "configured|created|unchanged" | sed 's/^/  /'
 
 print_status "Waiting for MongoDB to be ready..."
-oc rollout status deployment/mongodb -n "$NAMESPACE" --timeout=180s || {
+if oc rollout status deployment/mongodb -n "$NAMESPACE" --timeout=180s &>/dev/null; then
+    print_success "MongoDB is ready"
+else
     print_error "MongoDB deployment timeout"
     print_info "Check status: oc get pods -n $NAMESPACE"
     exit 1
-}
-print_success "MongoDB is ready"
+fi
 
 # Deploy MinIO
 print_step "Deploying MinIO"
-oc apply -k "$ROOT_DIR/infra/minio/openshift" -n "$NAMESPACE"
+oc apply -k "$ROOT_DIR/infra/minio/openshift" -n "$NAMESPACE" | grep -E "configured|created|unchanged" | sed 's/^/  /'
 
 print_status "Waiting for MinIO to be ready..."
-oc rollout status deployment/minio -n "$NAMESPACE" --timeout=180s || {
+if oc rollout status deployment/minio -n "$NAMESPACE" --timeout=180s &>/dev/null; then
+    print_success "MinIO is ready"
+else
     print_error "MinIO deployment timeout"
     print_info "Check status: oc get pods -n $NAMESPACE"
     exit 1
-}
-print_success "MinIO is ready"
+fi
 
 # Wait for services to fully start
 print_status "Waiting for services to accept connections..."
@@ -166,19 +168,23 @@ sleep 10
 if [ "$SKIP_INIT" = false ]; then
     print_step "Initializing MongoDB"
 
-    print_info "Cleaning up old jobs..."
-    oc delete job init-mongodb -n "$NAMESPACE" 2>/dev/null || true
-    oc delete jobs -l job-name=init-mongodb -n "$NAMESPACE" 2>/dev/null || true
+    # Cleanup old jobs silently
+    oc delete job init-mongodb -n "$NAMESPACE" &>/dev/null || true
+    oc delete jobs -l job-name=init-mongodb -n "$NAMESPACE" &>/dev/null || true
 
-    oc apply -f "$ROOT_DIR/infra/mongodb/openshift/init-job.yaml" -n "$NAMESPACE" > /dev/null
+    oc apply -f "$ROOT_DIR/infra/mongodb/openshift/init-job.yaml" -n "$NAMESPACE" &>/dev/null
 
     print_status "Creating collections and sample data..."
-    if oc wait --for=condition=complete --timeout=120s job/init-mongodb -n "$NAMESPACE" 2>/dev/null; then
-        print_success "MongoDB initialized successfully"
+    # Wait with shorter timeout and poll more frequently
+    if oc wait --for=condition=complete --timeout=60s job/init-mongodb -n "$NAMESPACE" &>/dev/null; then
+        print_success "MongoDB initialized"
     else
-        print_warning "MongoDB init timeout - checking status..."
-        oc get job init-mongodb -n "$NAMESPACE"
-        print_info "Check logs: oc logs job/init-mongodb -n $NAMESPACE"
+        # Check if job succeeded (might have completed before wait started)
+        if oc get job init-mongodb -n "$NAMESPACE" -o jsonpath='{.status.succeeded}' 2>/dev/null | grep -q "1"; then
+            print_success "MongoDB initialized"
+        else
+            print_warning "Init job running - check: oc logs job/init-mongodb -n $NAMESPACE"
+        fi
     fi
 fi
 
@@ -186,19 +192,23 @@ fi
 if [ "$SKIP_INIT" = false ]; then
     print_step "Initializing MinIO"
 
-    print_info "Cleaning up old jobs..."
-    oc delete job init-minio -n "$NAMESPACE" 2>/dev/null || true
-    oc delete jobs -l job-name=init-minio -n "$NAMESPACE" 2>/dev/null || true
+    # Cleanup old jobs silently
+    oc delete job init-minio -n "$NAMESPACE" &>/dev/null || true
+    oc delete jobs -l job-name=init-minio -n "$NAMESPACE" &>/dev/null || true
 
-    oc apply -f "$ROOT_DIR/infra/minio/openshift/init-job.yaml" -n "$NAMESPACE" > /dev/null
+    oc apply -f "$ROOT_DIR/infra/minio/openshift/init-job.yaml" -n "$NAMESPACE" &>/dev/null
 
     print_status "Creating storage buckets..."
-    if oc wait --for=condition=complete --timeout=120s job/init-minio -n "$NAMESPACE" 2>/dev/null; then
-        print_success "MinIO initialized successfully"
+    # Wait with shorter timeout
+    if oc wait --for=condition=complete --timeout=30s job/init-minio -n "$NAMESPACE" &>/dev/null; then
+        print_success "MinIO initialized"
     else
-        print_warning "MinIO init timeout - checking status..."
-        oc get job init-minio -n "$NAMESPACE"
-        print_info "Check logs: oc logs job/init-minio -n $NAMESPACE"
+        # Check if job succeeded (might have completed before wait started)
+        if oc get job init-minio -n "$NAMESPACE" -o jsonpath='{.status.succeeded}' 2>/dev/null | grep -q "1"; then
+            print_success "MinIO initialized"
+        else
+            print_warning "Init job running - check: oc logs job/init-minio -n $NAMESPACE"
+        fi
     fi
 fi
 

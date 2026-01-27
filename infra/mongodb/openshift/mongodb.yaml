@@ -16,45 +16,27 @@ spec:
     spec:
       containers:
       - name: mongodb
-        image: registry.redhat.io/rhel9/mongodb-70:latest
+        image: image-registry.openshift-image-registry.svc:5000/openshift/mongodb:latest
         ports:
         - containerPort: 27017
           name: mongodb
         env:
-        - name: MONGODB_USER
+        - name: MONGO_INITDB_ROOT_USERNAME
           value: "admin"
-        - name: MONGODB_PASSWORD
+        - name: MONGO_INITDB_ROOT_PASSWORD
           value: "gngdevpass12"
-        - name: MONGODB_DATABASE
+        - name: MONGO_INITDB_DATABASE
           value: "gngdb"
-        - name: MONGODB_ADMIN_PASSWORD
-          value: "gngdevpass12"
         resources:
           requests:
-            memory: "256Mi"
-            cpu: "100m"
+            memory: "256Mi"   # Increased from 128Mi
+            cpu: "50m"
           limits:
-            memory: "512Mi"
-            cpu: "250m"
+            memory: "1Gi"   # Increased from 256Mi to prevent OOMKill
+            cpu: "500m"
         volumeMounts:
         - name: mongodb-data
-          mountPath: /var/lib/mongodb/data
+          mountPath: /data/db
       volumes:
       - name: mongodb-data
         emptyDir: {}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: mongodb
-  labels:
-    app: mongodb
-spec:
-  ports:
-  - port: 27017
-    targetPort: 27017
-    protocol: TCP
-    name: mongodb
-  selector:
-    app: mongodb
-  type: ClusterIP

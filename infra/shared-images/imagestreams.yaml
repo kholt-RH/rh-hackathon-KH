@@ -1,0 +1,120 @@
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: mongodb
+  namespace: openshift
+  labels:
+    app: griot-grits-hackathon
+spec:
+  lookupPolicy:
+    local: false
+  tags:
+  - name: latest
+    from:
+      kind: DockerImage
+      name: docker.io/mongo:7.0
+    importPolicy:
+      scheduled: true
+    referencePolicy:
+      type: Source
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: minio
+  namespace: openshift
+  labels:
+    app: griot-grits-hackathon
+spec:
+  lookupPolicy:
+    local: false
+  tags:
+  - name: latest
+    from:
+      kind: DockerImage
+      name: quay.io/minio/minio:latest
+    importPolicy:
+      scheduled: true
+    referencePolicy:
+      type: Source
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: minio-mc
+  namespace: openshift
+  labels:
+    app: griot-grits-hackathon
+spec:
+  lookupPolicy:
+    local: false
+  tags:
+  - name: latest
+    from:
+      kind: DockerImage
+      name: quay.io/minio/mc:latest
+    importPolicy:
+      scheduled: true
+    referencePolicy:
+      type: Source
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: python-311
+  namespace: openshift
+  labels:
+    app: griot-grits-hackathon
+spec:
+  lookupPolicy:
+    local: false
+  tags:
+  - name: latest
+    from:
+      kind: DockerImage
+      name: registry.access.redhat.com/ubi9/python-311:latest
+    importPolicy:
+      scheduled: true
+    referencePolicy:
+      type: Source
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: nodejs-20
+  namespace: openshift
+  labels:
+    app: griot-grits-hackathon
+spec:
+  lookupPolicy:
+    local: false
+  tags:
+  - name: latest
+    from:
+      kind: DockerImage
+      name: registry.access.redhat.com/ubi9/nodejs-20:latest
+    importPolicy:
+      scheduled: true
+    referencePolicy:
+      type: Source
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: git
+  namespace: openshift
+  labels:
+    app: griot-grits-hackathon
+spec:
+  lookupPolicy:
+    local: false
+  tags:
+  - name: latest
+    from:
+      kind: DockerImage
+      name: docker.io/alpine/git:latest
+    importPolicy:
+      scheduled: true
+    referencePolicy:
+      type: Source

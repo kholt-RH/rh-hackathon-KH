@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: registry.access.redhat.com/ubi9/python-311:latest
+        workingDir: /tmp
+        command: ["/bin/bash", "-c"]
+        args:
+        - |
+          git clone https://github.com/griot-and-grits/gng-backend.git /tmp/app
+          cd /tmp/app
+          pip install --no-cache-dir -r requirements.txt
+          uvicorn app.server:app --host 0.0.0.0 --port 8000 --reload
+        ports:
+        - containerPort: 8000
+          name: http
+        env:
+        - name: PORT
+          value: "8000"
+        envFrom:
+        - configMapRef:
+            name: backend-config
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: backend
+  type: ClusterIP
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  to:
+    kind: Service
+    name: backend
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

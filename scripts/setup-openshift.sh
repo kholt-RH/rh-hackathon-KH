@@ -38,17 +38,20 @@ usage() {
     echo "Options:"
     echo "  -u, --username NAME     Your username/identifier (default: prompt)"
     echo "  -s, --skip-services     Skip MongoDB + MinIO deployment"
+    echo "  -c, --with-code         Deploy frontend and backend code with hot-reload"
     echo "  -d, --delete            Delete your namespace and all resources"
     echo "  -h, --help              Show this help message"
     echo ""
     echo "Examples:"
     echo "  $0                      Interactive setup (will prompt for username)"
     echo "  $0 -u jdoe              Setup for user 'jdoe'"
+    echo "  $0 -u jdoe --with-code  Setup with code deployment"
     echo "  $0 -u jdoe --delete     Delete namespace for user 'jdoe'"
 }
 
 USERNAME=""
 SKIP_SERVICES=false
+WITH_CODE=false
 DELETE=false
 
 while [[ $# -gt 0 ]]; do
@@ -59,6 +62,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -s|--skip-services)
             SKIP_SERVICES=true
+            shift
+            ;;
+        -c|--with-code)
+            WITH_CODE=true
             shift
             ;;
         -d|--delete)
@@ -170,18 +177,21 @@ echo -e "${BOLD}Namespace:${NC} ${CYAN}$NAMESPACE${NC}"
 
 if oc get namespace "$NAMESPACE" &> /dev/null; then
     print_success "Namespace already exists"
-    oc project "$NAMESPACE" > /dev/null 2>&1
+    oc project "$NAMESPACE" &>/dev/null
 else
     print_status "Creating new namespace..."
-    if oc new-project "$NAMESPACE" 2>/dev/null; then
-        print_success "Created namespace successfully"
-    elif oc create namespace "$NAMESPACE" 2>/dev/null; then
-        print_success "Created namespace successfully"
-        oc project "$NAMESPACE" > /dev/null 2>&1
+    if oc new-project "$NAMESPACE" &>/dev/null; then
+        print_success "Created namespace"
+    elif oc create namespace "$NAMESPACE" &>/dev/null; then
+        print_success "Created namespace"
+        oc project "$NAMESPACE" &>/dev/null
     else
         print_error "Failed to create namespace. You may not have permission."
         exit 1
     fi
+
+    # Label the namespace for easy cleanup
+    oc label namespace "$NAMESPACE" app=griot-grits-hackathon &>/dev/null || true
 fi
 
 # Save namespace to config
@@ -298,6 +308,29 @@ EOF
 print_success "Environment configuration saved"
 print_info "File: $ENV_FILE"
 
+# Deploy application code if requested
+if [ "$WITH_CODE" = true ]; then
+    echo ""
+    print_step "Deploying Application Code"
+
+    "$ROOT_DIR/scripts/deploy-code.sh" --namespace "$NAMESPACE"
+
+    echo ""
+    print_step "Starting Code Auto-Sync"
+
+    # Start watcher in background
+    nohup "$ROOT_DIR/scripts/watch-code.sh" --namespace "$NAMESPACE" > "$ROOT_DIR/.watch-code.log" 2>&1 &
+    WATCHER_PID=$!
+    echo "$WATCHER_PID" > "$ROOT_DIR/.watch-code.pid"
+
+    print_success "Code watcher started (PID: $WATCHER_PID)"
+    print_info "Watching: $ROOT_DIR/gng-backend and $ROOT_DIR/gng-web"
+    print_info "Logs: $ROOT_DIR/.watch-code.log"
+    print_info "Stop with: kill \$(cat $ROOT_DIR/.watch-code.pid)"
+
+    echo ""
+fi
+
 print_header "✨ Setup Complete!"
 
 echo -e "${GREEN}${BOLD}✓ Your Environment is Ready!${NC}\n"
@@ -308,52 +341,49 @@ echo -e "  ${GREEN}●${NC} MongoDB: ${CYAN}mongodb:27017${NC}"
 echo -e "  ${GREEN}●${NC} MinIO: ${CYAN}minio:9000${NC}"
 echo ""
 
-echo -e "${BOLD}Connection Details:${NC}\n"
-
-echo -e "${CYAN}MongoDB:${NC}"
-echo -e "  ${DIM}URI:${NC} mongodb://admin:gngdevpass12@mongodb:27017/gngdb"
-echo ""
-
-echo -e "${CYAN}MinIO:${NC}"
-echo -e "  ${DIM}Endpoint:${NC}    minio:9000"
-echo -e "  ${DIM}Access Key:${NC}  minioadmin"
-echo -e "  ${DIM}Secret Key:${NC}  minioadmin"
-echo -e "  ${DIM}Bucket:${NC}      artifacts"
-echo ""
-
 # Get MinIO console route
 MINIO_CONSOLE=$(oc get route minio-console -n "$NAMESPACE" -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
-if [ -n "$MINIO_CONSOLE" ]; then
-    echo -e "  ${DIM}Console:${NC}     ${CYAN}https://$MINIO_CONSOLE${NC}"
-    echo ""
-fi
 
 echo -e "${BOLD}📝 Next Steps:${NC}\n"
 
-echo -e "${YELLOW}1.${NC} ${BOLD}Use the backend services:${NC}"
-echo -e "   ${DIM}source .env.openshift${NC}"
-echo -e "   ${DIM}# All connection details are in this file${NC}\n"
+if [ "$WITH_CODE" = true ]; then
+    # Get application routes
+    FRONTEND_ROUTE=$(oc get route frontend -n "$NAMESPACE" -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+    BACKEND_ROUTE=$(oc get route backend -n "$NAMESPACE" -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
 
-echo -e "${YELLOW}2.${NC} ${BOLD}Access MinIO console:${NC}"
-if [ -n "$MINIO_CONSOLE" ]; then
-    echo -e "   ${DIM}https://$MINIO_CONSOLE${NC}"
-    echo -e "   ${DIM}Login: minioadmin / minioadmin${NC}\n"
+    echo -e "${YELLOW}1.${NC} ${BOLD}Start coding!${NC}"
+    echo -e "   ${DIM}cd gng-backend  # Edit backend${NC}"
+    echo -e "   ${DIM}cd gng-web      # Edit frontend${NC}"
+    echo -e "   ${DIM}Changes auto-sync to OpenShift${NC}\n"
+
+    echo -e "${YELLOW}2.${NC} ${BOLD}View your app:${NC}"
+    if [ -n "$FRONTEND_ROUTE" ]; then
+        echo -e "   ${CYAN}https://$FRONTEND_ROUTE${NC}"
+    fi
+    if [ -n "$BACKEND_ROUTE" ]; then
+        echo -e "   ${DIM}API: https://$BACKEND_ROUTE/docs${NC}"
+    fi
+    echo ""
+
+    echo -e "${YELLOW}3.${NC} ${BOLD}Manage watcher:${NC}"
+    echo -e "   ${DIM}./scripts/watch-ctl.sh status  # Check sync status${NC}"
+    echo -e "   ${DIM}./scripts/watch-ctl.sh logs    # View sync logs${NC}\n"
 else
-    echo -e "   ${DIM}oc get route minio-console -n $NAMESPACE${NC}\n"
+    echo -e "${YELLOW}1.${NC} ${BOLD}Deploy code with hot-reload:${NC}"
+    echo -e "   ${DIM}$0 --username $USERNAME --with-code${NC}\n"
+
+    echo -e "${YELLOW}2.${NC} ${BOLD}Or use services only:${NC}"
+    echo -e "   ${DIM}source .env.openshift  # Load config${NC}\n"
 fi
 
-echo -e "${YELLOW}3.${NC} ${BOLD}Port-forward for local access:${NC}"
-echo -e "   ${DIM}oc port-forward service/mongodb 27017:27017 -n $NAMESPACE${NC}"
-echo -e "   ${DIM}oc port-forward service/minio 9000:9000 -n $NAMESPACE${NC}\n"
+if [ -n "$MINIO_CONSOLE" ]; then
+    echo -e "${DIM}MinIO Console: https://$MINIO_CONSOLE (minioadmin/minioadmin)${NC}\n"
+fi
 
-echo -e "${BOLD}🛠  Useful Commands:${NC}\n"
-echo -e "  ${CYAN}oc get all -n $NAMESPACE${NC}"
-echo -e "    ${DIM}View all resources${NC}\n"
-echo -e "  ${CYAN}oc logs -f deployment/postgres -n $NAMESPACE${NC}"
-echo -e "    ${DIM}View PostgreSQL logs${NC}\n"
-echo -e "  ${CYAN}./scripts/cleanup-jobs.sh${NC}"
-echo -e "    ${DIM}Clean up old jobs${NC}\n"
-echo -e "  ${CYAN}$0 --delete${NC}"
-echo -e "    ${DIM}Delete your namespace${NC}\n"
+echo -e "${BOLD}🛠  Useful Commands:${NC}"
+echo -e "  ${DIM}oc get all -n $NAMESPACE         # View all resources${NC}"
+echo -e "  ${DIM}oc logs -f deployment/backend    # View backend logs${NC}"
+echo -e "  ${DIM}$0 --delete                      # Delete namespace${NC}"
+echo ""
 
 echo -e "${GREEN}${BOLD}Happy Hacking! 🚀${NC}\n"

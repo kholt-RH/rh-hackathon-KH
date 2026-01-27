@@ -208,3 +208,13 @@ __marimo__/
 
 # GNG Hackathon local config
 .container-runtime
+.env.openshift
+.openshift-config
+.watch-code.log
+.watch-code.pid
+.watch-backend.log
+.watch-backend.pid
+
+# Cloned application repositories
+gng-backend/
+gng-web/
